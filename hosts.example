@@ -1,0 +1,5 @@
+# copy to hosts.txt (git-ignored). one target per line: [user@]host[:port] [name]
+root@192.168.3.5     web
+root@192.168.3.12    db
+blueteam@192.168.3.7 dns
+root@172.18.13.20    shell

@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Hunting mode for this project. Off unless you start Crush with HUNT=1, so
+# normal work here is unaffected.
+#
+#   HUNT=1 crush                       # local model via LM Studio on :1234
+#   HUNT=1 HUNT_LLM_TYPE=ollama HUNT_LLM_URL=http://localhost:11434/v1 HUNT_MODEL=qwen3-coder:30b crush
+#   HUNT=1 HUNT_LLM_URL=http://<laptop-vpn-ip>:1234/v1 crush   # share one GPU laptop with the team
+#
+# Everything stays on the LAN: no paid API, works before the router is up.
+if [[ "${HUNT:-}" == 1 ]]; then
+    hunt_model="${HUNT_MODEL:-qwen3-coder-30b-a3b-instruct-mlx}"
+    provider add hunt-local \
+        --name "hunt (local)" \
+        --type "${HUNT_LLM_TYPE:-lmstudio}" \
+        --base-url "${HUNT_LLM_URL:-http://localhost:1234/v1}" \
+        --api-key "${HUNT_LLM_KEY:-local}"
+    model add "hunt-local/$hunt_model" --name "$hunt_model" --context-window "${HUNT_CTX:-65536}"
+    model large "hunt-local/$hunt_model"
+    model small "hunt-local/$hunt_model"
+
+    # Read-only by default: any bash command that would change a box is
+    # refused and has to be proposed to a human instead.
+    hook add PreToolUse --matcher '^bash$' --name hunt-guard \
+        --command '"${CRUSH_PROJECT_DIR:-.}"/hooks/guard.sh'
+fi
