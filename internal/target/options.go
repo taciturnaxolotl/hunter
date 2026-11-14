@@ -13,6 +13,7 @@ type Options struct {
 	PkgVerify  bool
 	PkgTimeout time.Duration
 	Rules      []string // extra indicator packs as raw JSON
+	SkipDirs   []string // hunter's own state, never walked
 	Version    string
 }
 

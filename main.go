@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 	"strings"
 	"time"
 
@@ -35,17 +36,24 @@ func rootCmd() *cobra.Command {
 		Short: "Agentless threat hunting over SSH",
 		Long: "Agentless threat hunting for competition boxes. On your laptop hunter pushes itself\n" +
 			"to every box over SSH, collects, and diffs against a baseline. On a box it reads\n" +
-			"/proc, /etc and the package databases directly instead of trusting the box's own tools.",
+			"/proc, /etc and the package databases directly instead of trusting the box's own tools.\n\n" +
+			"Logged into a Linux box, plain `hunter` is `hunter scan`.",
+		Args: cobra.NoArgs,
+	}
+	if runtime.GOOS == "linux" {
+		scan := scanCmd()
+		root.Flags().AddFlagSet(scan.Flags())
+		root.RunE = scan.RunE
 	}
 	root.AddGroup(
 		&cobra.Group{ID: "laptop", Title: "Laptop"},
-		&cobra.Group{ID: "target", Title: "Target (runs on a box, usually through remote)"},
+		&cobra.Group{ID: "target", Title: "On a box (logged in, or through remote)"},
 	)
 	for _, c := range []*cobra.Command{sweepCmd(), showCmd(), diffCmd(), baselineCmd(), remoteCmd()} {
 		c.GroupID = "laptop"
 		root.AddCommand(c)
 	}
-	for _, c := range []*cobra.Command{collectCmd(), inspectCmd(), quarantineCmd()} {
+	for _, c := range []*cobra.Command{scanCmd(), collectCmd(), inspectCmd(), quarantineCmd()} {
 		c.GroupID = "target"
 		root.AddCommand(c)
 	}

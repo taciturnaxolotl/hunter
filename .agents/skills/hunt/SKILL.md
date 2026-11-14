@@ -51,6 +51,11 @@ confirms the current state is good. Re-sweep every 30 to 90 minutes
 (`-watch 30m`): at CCDC 2026 running implants pulled a second stage about
 2.5 hours after the first visit, with no login, onto boxes marked clean.
 
+A finding whose msg starts with `allowed:` was marked known-good by the
+team (`~/.hunter/allow.json` on the box) and is reported as info. Mention
+it only if it changed. Never suggest allowing something yourself; that is
+the human's call, made in `hunter quarantine` on the box.
+
 ## Reading findings
 
 Each record: `host`, `change` (new / changed / gone / present / baseline),

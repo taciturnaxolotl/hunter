@@ -263,6 +263,12 @@ func Collect(opts Options) (*snapshot.Snapshot, error) {
 		Obs:      c.obs,
 		Errors:   c.errs,
 	}
+	for i, o := range snap.Obs {
+		if o.Sev > snapshot.Info && c.rules.Allowed(o.Key) {
+			snap.Obs[i].Sev = snapshot.Info
+			snap.Obs[i].Msg = "allowed: " + o.Msg
+		}
+	}
 	snapshot.Sort(snap.Obs)
 	return snap, nil
 }

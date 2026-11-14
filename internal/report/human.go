@@ -78,14 +78,21 @@ func RenderResult(r sweep.Result, max int) string {
 		b.WriteString(RenderFindings(r.Snap.Filter(snapshot.Warn, ""), max) + "\n")
 		return b.String()
 	}
-	ago := time.Since(r.BaseTime).Round(time.Minute)
-	b.WriteString(indent(Dim.Render("changes since baseline ("+ago.String()+" ago):")) + "\n")
+	b.WriteString(indent(Dim.Render("changes since baseline ("+Ago(r.BaseTime)+"):")) + "\n")
 	b.WriteString(RenderChanges(r.Changes, max) + "\n")
 	if crit, _, _ := r.Snap.Counts(); crit > 0 {
-		b.WriteString(indent(Red.Render(fmt.Sprintf("%d crit findings present in total", crit))+
-			Dim.Render("  (hunter show --sev crit "+r.Host.Name+")")) + "\n")
+		b.WriteString(indent(Red.Render(fmt.Sprintf("%d crit findings present in total", crit))) + "\n")
 	}
 	return b.String()
+}
+
+// Ago says how long ago t was, to the second under a minute.
+func Ago(t time.Time) string {
+	d := time.Since(t)
+	if d < time.Minute {
+		return d.Round(time.Second).String() + " ago"
+	}
+	return d.Round(time.Minute).String() + " ago"
 }
 
 func obsBody(o snapshot.Obs) string {

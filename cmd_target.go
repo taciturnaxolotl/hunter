@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/taciturnaxolotl/hunter/internal/remote"
+	"github.com/taciturnaxolotl/hunter/internal/snapshot"
 	"github.com/taciturnaxolotl/hunter/internal/target"
 )
 
@@ -40,6 +41,8 @@ func collectCmd() *cobra.Command {
 				}
 				o.Rules = append(o.Rules, string(b))
 			}
+			o.SkipDirs = ownDirs()
+			o.Rules = append(o.Rules, localRules()...)
 			snap, err := target.Collect(o)
 			if err != nil {
 				return err
@@ -81,17 +84,37 @@ func quarantineCmd() *cobra.Command {
 	var (
 		kill bool
 		dir  string
+		runs string
+		sevS string
 	)
 	c := &cobra.Command{
-		Use:    "quarantine PATH...",
-		Short:  "Move files to ~/.quarantine with a manifest",
-		Args:   cobra.MinimumNArgs(1),
-		PreRun: verifyTransfer,
+		Use:   "quarantine [PATH...]",
+		Short: "Move files to ~/.quarantine, or step through fixes with no paths",
+		Long: "With paths, move each to the quarantine directory (chmod 0, metadata in\n" +
+			"MANIFEST.jsonl). With none, walk through every finding from the latest scan of\n" +
+			"this box, one at a time: inspect, kill, quarantine, edit, or mark it known-good\n" +
+			"(saved to the box's allow list). Nothing happens unless chosen, and packaged or\n" +
+			"system files are never offered for quarantine.",
+		Example: "  sudo ./hunter quarantine\n  hunter quarantine --kill /usr/sbin/rt-tagd",
+		PreRun:  verifyTransfer,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if dir == "" {
+				dir = quarantineDir()
+			}
+			if len(args) == 0 {
+				sev, err := snapshot.ParseSev(sevS)
+				if err != nil {
+					return err
+				}
+				return fixWalkthrough(runs, sev, dir)
+			}
 			return target.Quarantine(os.Stdout, args, dir, kill)
 		},
 	}
-	c.Flags().BoolVar(&kill, "kill", false, "SIGKILL processes running the file first")
-	c.Flags().StringVar(&dir, "dir", "", "quarantine directory (default ~/.quarantine)")
+	f := c.Flags()
+	f.BoolVar(&kill, "kill", false, "SIGKILL processes running the file first")
+	f.StringVar(&dir, "dir", "", "quarantine directory (default ~/.quarantine)")
+	f.StringVar(&runs, "runs", localRuns(), "walkthrough: where hunter scan keeps its scans")
+	f.StringVar(&sevS, "sev", "warn", "walkthrough: lowest severity to step through")
 	return c
 }

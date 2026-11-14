@@ -71,7 +71,7 @@ func (c *collector) checkFS() {
 				return nil
 			}
 			if d.IsDir() {
-				if walkSkip[p] && p != root {
+				if c.skipDir(p) && p != root {
 					return filepath.SkipDir
 				}
 				return nil
@@ -264,7 +264,7 @@ func (c *collector) checkIOC() {
 			if d.IsDir() {
 				b := filepath.Base(p)
 				// our own repo carries the indicator pack; do not match ourselves
-				if walkSkip[p] || b == ".cache" || b == "node_modules" || b == ".git" || exists(filepath.Join(p, "rules/ccdc-kit.json")) {
+				if c.skipDir(p) || b == ".cache" || b == "node_modules" || b == ".git" || exists(filepath.Join(p, "rules/ccdc-kit.json")) {
 					return filepath.SkipDir
 				}
 				return nil
@@ -291,4 +291,18 @@ func (c *collector) checkIOC() {
 			return nil
 		})
 	}
+}
+
+// skipDir leaves out pseudo filesystems and hunter's own state: saved
+// scans and quarantined files would otherwise match every indicator.
+func (c *collector) skipDir(p string) bool {
+	if walkSkip[p] {
+		return true
+	}
+	for _, d := range c.opts.SkipDirs {
+		if p == d {
+			return true
+		}
+	}
+	return false
 }

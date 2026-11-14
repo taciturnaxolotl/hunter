@@ -138,15 +138,20 @@ func one(ctx context.Context, o *Options, h remote.Host, phase func(Phase)) Resu
 		r.Err = fmt.Errorf("bad collector output: %v %s", err, sanitize.Clean(stderr.String(), 200))
 		return r
 	}
-	r.Snap = &snap
-	r.NewBase = base == nil || o.Rebase
-	if err := o.Store.Save(h.Name, &snap, r.NewBase); err != nil {
+	return Record(o.Store, h, &snap, base, o.Rebase)
+}
+
+// Record files a fresh snapshot of h and diffs it against base, which
+// becomes snap itself when there is none yet or rebase is set.
+func Record(st snapshot.Store, h remote.Host, snap, base *snapshot.Snapshot, rebase bool) Result {
+	r := Result{Host: h, Snap: snap, NewBase: base == nil || rebase}
+	if err := st.Save(h.Name, snap, r.NewBase); err != nil {
 		r.Err = err
 		return r
 	}
 	if !r.NewBase {
 		r.BaseTime = base.Time
-		r.Changes = snapshot.Diff(base, &snap)
+		r.Changes = snapshot.Diff(base, snap)
 	}
 	return r
 }

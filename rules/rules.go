@@ -8,6 +8,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"path"
 )
 
 // Rules is one pack, or several merged.
@@ -21,7 +22,11 @@ type Rules struct {
 	IPs     []string `json:"ips,omitempty"`     // remote addresses
 	Procs   []string `json:"procs,omitempty"`   // process names (comm or argv0 basename)
 	Users   []string `json:"users,omitempty"`   // account names
-	Files   []struct {
+	// Allow lists observation keys (globs, e.g. "mod:spelunk" or
+	// "pid:*:scoringd") known to be legitimate on this network. They stay
+	// in the snapshot as info, so a change to them still shows in a diff.
+	Allow []string `json:"allow,omitempty"`
+	Files []struct {
 		Glob     string   `json:"glob"`
 		Contains []string `json:"contains"`
 	} `json:"file_contains,omitempty"`
@@ -51,6 +56,20 @@ func Load(extra []string) (*Rules, error) {
 		all.Procs = append(all.Procs, r.Procs...)
 		all.Users = append(all.Users, r.Users...)
 		all.Files = append(all.Files, r.Files...)
+		all.Allow = append(all.Allow, r.Allow...)
 	}
 	return &all, nil
+}
+
+// Allowed reports whether an observation key is on the allow list.
+func (r *Rules) Allowed(key string) bool {
+	for _, pat := range r.Allow {
+		if pat == key {
+			return true
+		}
+		if ok, _ := path.Match(pat, key); ok {
+			return true
+		}
+	}
+	return false
 }

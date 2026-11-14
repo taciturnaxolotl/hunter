@@ -36,6 +36,34 @@ prints the last round. Pipes, `--agent` and `--plain` get the plain report.
 Take the baseline right after hardening. Keep re-sweeping: at CCDC 2026
 implants pulled a second stage hours later onto boxes marked clean.
 
+### On one box
+
+When all you have is a console on the box (Proxmox, a jump host, no keys
+to the others), copy the matching `hunter-linux-<arch>` over and run it
+there:
+
+```bash
+sudo ./hunter                  # same as `hunter scan`
+sudo ./hunter --watch 5m       # rescan every 5 minutes
+sudo ./hunter quarantine       # step through the fixes
+```
+
+Every scan is saved under `~/.hunter` (or `$HUNTER_RUNS`); the first is the
+baseline and later ones diff against it, so there is nothing to pipe. The
+pager has two tabs: what changed, and every finding (`f` cycles crit, warn,
+info). `s` scans now, `b` accepts the scan as the baseline, and `x` opens
+the fix walkthrough.
+
+The walkthrough goes through each finding from the latest scan, loudest
+first, and offers only what makes sense: inspect the file, kill its
+processes, quarantine it, open it in `$EDITOR`, or mark it known-good.
+Nothing happens unless you pick it. Files a package owns and files every
+login depends on (`/etc/shadow`, PAM config, dotfiles) are never offered
+for quarantine. Known-good findings go in `~/.hunter/allow.json` and stay
+in later scans as `info`, so a scoring agent or a competition kernel module
+stops shouting but still shows up if it changes. A sweep from the laptop
+reads the same allow list.
+
 Digging in and cleaning up, still over SSH:
 
 ```bash

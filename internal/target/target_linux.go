@@ -213,3 +213,32 @@ func Inspect(w io.Writer, paths []string, nStrings int) error {
 	}
 	return nil
 }
+
+// Ownership reads the package databases once and reports whether a
+// package claims a file. It returns nil when ownership cannot be known.
+func Ownership() func(string) bool {
+	c := &collector{res: dirResolver{}}
+	c.loadOwnership()
+	if c.owned == nil {
+		return nil
+	}
+	return c.isOwned
+}
+
+// Running lists the processes executing path.
+func Running(path string) []int { return pidsRunning(path) }
+
+// Kill SIGKILLs pid, but only if it is still the process the snapshot
+// saw: pids get reused, and the snapshot may be minutes old.
+func Kill(p Proc) error {
+	if p.Comm != "" {
+		b, err := os.ReadFile(fmt.Sprintf("/proc/%d/comm", p.PID))
+		if err != nil {
+			return fmt.Errorf("pid %d is gone", p.PID)
+		}
+		if got := strings.TrimSpace(string(b)); got != p.Comm {
+			return fmt.Errorf("pid %d is now %q, not %q; not killing it", p.PID, got, p.Comm)
+		}
+	}
+	return syscall.Kill(p.PID, syscall.SIGKILL)
+}
