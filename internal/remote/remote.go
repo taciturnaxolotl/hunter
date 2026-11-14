@@ -113,6 +113,9 @@ var unameArch = map[string]string{
 	"aarch64": "arm64", "arm64": "arm64",
 	"i686": "386", "i386": "386",
 	"armv7l": "arm", "armv6l": "arm",
+	"riscv64": "riscv64",
+	"ppc64le": "ppc64le",
+	"s390x":   "s390x",
 }
 
 func (o *Options) arch(ctx context.Context, h Host) (string, error) {
