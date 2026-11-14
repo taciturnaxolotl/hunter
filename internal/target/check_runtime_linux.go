@@ -330,6 +330,7 @@ func scopeOf(ip net.IP) string {
 
 func (c *collector) checkKernel() {
 	if b, err := os.ReadFile("/proc/modules"); err == nil {
+		modFiles := moduleFiles()
 		for _, l := range strings.Split(string(b), "\n") {
 			f := strings.Fields(l)
 			if len(f) == 0 {
@@ -340,22 +341,81 @@ func (c *collector) checkKernel() {
 				taint = l[i:]
 			}
 			sev, msg := snapshot.Info, "kernel module"
+			detail := f[0] + " " + taint
 			if strings.ContainsAny(taint, "OE") {
-				sev, msg = snapshot.Warn, "out-of-tree or unsigned kernel module "+taint
+				// Monitoring and log agents ship their own modules. One
+				// a package installed is inventory; one nothing owns is
+				// what an LKM rootkit looks like.
+				file := modFiles[f[0]]
+				switch {
+				case file == "":
+					sev, msg = snapshot.Warn, "out-of-tree kernel module with no file under /lib/modules "+taint
+				case c.owned != nil && c.isOwned(file):
+					msg = "out-of-tree kernel module installed by a package " + taint
+				default:
+					sev, msg = snapshot.Warn, "out-of-tree kernel module no package owns "+taint
+				}
+				if file != "" {
+					detail += " " + file
+				}
 			}
-			c.add("kernel", "mod:"+f[0], sev, msg, f[0]+" "+taint, f[0])
+			c.add("kernel", "mod:"+f[0], sev, msg, detail, f[0])
 		}
 	}
 	if t := readTrim("/proc/sys/kernel/tainted"); t != "" && t != "0" {
 		c.add("kernel", "tainted", snapshot.Info, "kernel taint flags", t, "")
 	}
+	c.checkBPF()
+}
+
+// moduleFiles maps loaded module names to their files for this kernel.
+func moduleFiles() map[string]string {
+	out := map[string]string{}
+	root := "/lib/modules/" + readTrim("/proc/sys/kernel/osrelease")
+	_ = filepath.WalkDir(root, func(p string, e os.DirEntry, err error) error {
+		if err != nil || e.IsDir() {
+			return nil
+		}
+		name := e.Name()
+		i := strings.Index(name, ".ko")
+		if i <= 0 {
+			return nil
+		}
+		// the kernel reports dashes in module names as underscores
+		out[strings.ReplaceAll(name[:i], "-", "_")] = p
+		return nil
+	})
+	return out
+}
+
+// checkBPF reports pinned BPF objects one directory at a time: an agent
+// that pins forty maps is one thing to look at, not forty.
+func (c *collector) checkBPF() {
+	groups := map[string][]string{}
+	var order []string
 	_ = filepath.WalkDir("/sys/fs/bpf", func(p string, e os.DirEntry, err error) error {
 		if err != nil || e.IsDir() {
 			return nil
 		}
-		c.add("kernel", "bpf:"+p, snapshot.Warn, "pinned BPF object (tc/XDP backdoors pin maps here)", p, "")
+		rel := strings.TrimPrefix(p, "/sys/fs/bpf/")
+		group := "/sys/fs/bpf/" + rel
+		if top, _, ok := strings.Cut(rel, "/"); ok {
+			group = "/sys/fs/bpf/" + top
+		}
+		if _, seen := groups[group]; !seen {
+			order = append(order, group)
+		}
+		groups[group] = append(groups[group], rel)
 		return nil
 	})
+	for _, g := range order {
+		objs := groups[g]
+		detail := strings.Join(objs, " ")
+		if len(objs) > 8 {
+			detail = fmt.Sprintf("%d objects: %s ...", len(objs), strings.Join(objs[:8], " "))
+		}
+		c.add("kernel", "bpf:"+g, snapshot.Warn, "pinned BPF objects (monitoring agents and tc/XDP backdoors both pin here)", detail, strings.Join(objs, "\n"))
+	}
 }
 
 func (c *collector) checkLogs() {
